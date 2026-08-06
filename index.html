@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Preply support bot — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#121117; --pink:#FF79AC; --pink-soft:#FFEBF4; --paper:#FFFFFF;
+    --wash:#F4F3F8; --line:#E4E2EC; --muted:#6B6B78;
+    --console:#14131A; --console-line:#282631; --console-text:#B9B6C6;
+    --pass:#12A594; --fail:#F0526A; --flag:#E8A33D; --hold:#8A87A0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--wash);color:var(--ink);
+    font-family:'Figtree',ui-sans-serif,system-ui,-apple-system,sans-serif;
+    padding:22px;-webkit-font-smoothing:antialiased}
+  .shell{max-width:1180px;margin:0 auto}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    margin:0 0 8px;font-weight:600}
+  h1{font-size:27px;font-weight:800;letter-spacing:-.02em;margin:0 0 7px}
+  .sub{font-size:14.5px;color:var(--muted);margin:0 0 22px;max-width:74ch;line-height:1.55}
+
+  .grid{display:grid;grid-template-columns:1fr 410px;gap:16px}
+  .pane{border-radius:15px;overflow:hidden;display:flex;flex-direction:column;height:600px}
+  .chat{background:var(--paper);border:1px solid var(--line)}
+
+  .bar{display:flex;align-items:center;gap:11px;padding:14px 17px;
+    border-bottom:1px solid var(--line);flex:0 0 auto}
+  .av{width:28px;height:28px;border-radius:50%;background:var(--pink);color:#fff;
+    font-size:13px;font-weight:800;display:grid;place-items:center}
+  .bname{font-size:14px;font-weight:700;line-height:1.2}
+  .bsub{font-size:11.5px;color:var(--muted)}
+
+  .log{flex:1;overflow-y:auto;padding:19px 17px;display:flex;flex-direction:column;gap:12px}
+  .row{display:flex}
+  .row[data-who="user"]{justify-content:flex-end}
+  .b{max-width:80%;padding:11px 15px;border-radius:16px;font-size:14px;line-height:1.5}
+  .b[data-who="bot"]{background:var(--wash);border-bottom-left-radius:5px}
+  .b[data-who="user"]{background:var(--ink);color:#fff;border-bottom-right-radius:5px;font-weight:500}
+  .sys{align-self:center;font-size:11.5px;color:var(--muted);background:var(--wash);
+    border:1px dashed var(--line);border-radius:999px;padding:6px 15px;font-weight:600}
+  .note{font-size:12px;line-height:1.55;color:#7A5B00;background:#FFF6DC;
+    border-left:2px solid var(--flag);border-radius:0 8px 8px 0;padding:10px 13px}
+
+  .opts{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end;padding-top:2px}
+  .opt{background:var(--wash);border:1.5px solid var(--pink);border-radius:16px;
+    border-bottom-right-radius:5px;padding:8px 14px;font-family:inherit;font-size:13px;
+    font-weight:600;color:var(--ink);cursor:pointer;transition:background .15s,transform .1s;
+    line-height:1.3;white-space:nowrap}
+  .opt:hover{background:var(--pink-soft)}
+  .opt:active{transform:translateY(1px)}
+  .opt:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  @media(max-width:560px){ .opt{white-space:normal} }
+
+  .typing{display:flex;gap:4px;padding:14px 16px;background:var(--wash);
+    border-radius:16px;border-bottom-left-radius:5px;width:fit-content}
+  .typing i{width:6px;height:6px;border-radius:50%;background:#B9B6C6;animation:blink 1.3s infinite}
+  .typing i:nth-child(2){animation-delay:.18s}
+  .typing i:nth-child(3){animation-delay:.36s}
+  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+
+  .gatewrap{padding:13px 17px;border-top:1px solid var(--line);background:var(--pink-soft);flex:0 0 auto}
+  .gatelabel{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+    margin-bottom:8px}
+  .gate{width:100%;border:0;background:var(--ink);color:#fff;border-radius:10px;padding:12px;
+    font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  .gate:focus-visible{outline:2px solid var(--pink);outline-offset:2px}
+
+  .foot{padding:12px 17px;border-top:1px solid var(--line);flex:0 0 auto;
+    display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .status{font-size:12px;font-weight:700;color:var(--muted)}
+  .restart{border:1px solid var(--line);background:var(--paper);border-radius:9px;
+    padding:7px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .restart:hover{background:var(--wash)}
+  .restart:focus-visible{outline:2px solid var(--pink);outline-offset:2px}
+
+  .trace{background:var(--console);border:1px solid var(--console)}
+  .tbar{display:flex;align-items:center;justify-content:space-between;padding:14px 17px;
+    border-bottom:1px solid var(--console-line);flex:0 0 auto}
+  .ttitle{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#fff;font-weight:800}
+  .tsub{font-size:10.5px;color:var(--hold);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .tlog{flex:1;overflow-y:auto;padding:15px 17px;display:flex;flex-direction:column;gap:11px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .idle{font-size:11px;color:var(--hold);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .t{animation:fin .25s ease}
+  @keyframes fin{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  .thead{display:flex;gap:9px;align-items:flex-start}
+  .dot{width:6px;height:6px;border-radius:50%;margin-top:5px;flex:0 0 auto}
+  .tk{font-size:11px;color:var(--console-text);flex:0 0 auto;width:112px;line-height:1.45}
+  .tv{font-size:11px;color:#fff;line-height:1.45;flex:1}
+  .tag{font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;padding:1px 5px;
+    border-radius:3px;font-weight:700;flex:0 0 auto;margin-top:1px}
+  .api{font-size:10px;line-height:1.5;margin:4px 0 0 15px;padding:5px 8px;border-radius:5px;
+    background:rgba(255,255,255,.035);color:var(--hold);word-break:break-all}
+  .api.write{background:rgba(255,121,172,.11);color:#FFA8C9}
+  .api .verb{font-weight:700;color:var(--console-text)}
+  .api.write .verb{color:var(--pink)}
+  .out{border-radius:9px;padding:11px 13px;margin-top:2px}
+  .outk{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.8;margin-bottom:3px}
+  .outv{font-size:13px;font-weight:800}
+  .tfoot{padding:12px 17px;border-top:1px solid var(--console-line);flex:0 0 auto;
+    font-size:10.5px;color:var(--hold);line-height:1.55;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .tfoot b{color:var(--console-text)}
+  .key{display:flex;gap:13px;margin-top:7px;flex-wrap:wrap}
+  .key span{display:flex;align-items:center;gap:5px}
+  .sw{width:16px;height:8px;border-radius:2px;display:inline-block}
+
+  .legend{margin-top:16px;font-size:12.5px;color:var(--muted);line-height:1.65;max-width:100ch}
+  .legend b{color:var(--ink)}
+  .fineprint{margin:14px 0 0;font-size:11.5px;color:#8B8B98;line-height:1.6;max-width:100ch;
+    padding-top:13px;border-top:1px solid var(--line)}
+  .byline{margin:7px 0 0;font-size:11.5px;color:#8B8B98;font-weight:600}
+
+  @media(max-width:900px){
+    body{padding:14px}
+    .grid{grid-template-columns:1fr}
+    .pane{height:480px}
+    h1{font-size:22px}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .t{animation:none}.typing i{animation:none;opacity:.6}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <p class="eyebrow">Prototype · Launch 1 and Launch 2</p>
+  <h1>What the customer sees, and the rule that produced it</h1>
+  <p class="sub">Every rule on the right comes from Preply's published help centre. Pick a situation
+    and watch it run — the bot never decides anything, it explains what the rules returned.</p>
+
+  <div class="grid">
+    <div class="pane chat">
+      <div class="bar">
+        <div class="av">P</div>
+        <div>
+          <div class="bname">Preply Support</div>
+          <div class="bsub">Automated · a person is one tap away</div>
+        </div>
+      </div>
+      <div class="log" id="log"></div>
+      <div id="gatewrap"></div>
+      <div class="foot">
+        <span class="status" id="status">Choose what you need help with</span>
+        <button class="restart" id="restart">Start over</button>
+      </div>
+    </div>
+
+    <div class="pane trace">
+      <div class="tbar">
+        <span class="ttitle">Rules engine</span>
+        <span class="tsub" id="tcount">idle</span>
+      </div>
+      <div class="tlog" id="tlog"><div class="idle">awaiting request…</div></div>
+      <div class="tfoot">
+        No language model decides eligibility. It classifies the request and writes the reply —
+        every outcome above is fixed policy.
+        <div class="key">
+          <span><i class="sw" style="background:rgba(255,255,255,.14)"></i> read</span>
+          <span><i class="sw" style="background:rgba(255,121,172,.45)"></i> write</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="legend"><b>What to look for.</b> The bot resolves a case only when every rule matches.
+    Identity is checked before money moves, in code rather than instruction. Anything borderline,
+    repeated, or contradicted by the lesson record goes to a person with the context attached —
+    which is both the fraud control and the reason this can ship in a single quarter.</p>
+
+  <p class="fineprint">Policy rules, time windows and outcomes follow Preply's published help
+    centre. Names, amounts, dates and record IDs are illustrative, and the API calls shown are a
+    plausible sketch rather than real endpoints.</p>
+  <p class="byline">Prepared by Telmo · interview case study</p>
+</div>
+
+<script>
+/* ============================================================
+   Scenario scripts. Rules and windows are Preply's published
+   policy; names, amounts and IDs are illustrative.
+   ============================================================ */
+const DATA = {
+  refund: {
+    label: "Refund request",
+    ask: "Sure — which of these is closest to your situation?",
+    items: [
+      { id:"r1", chip:"Charged a while ago", hint:"Declined by rule", outcome:"Declined by rule", script:[
+        {t:"user",text:"I want a refund for my subscription, I was charged last month"},
+        {t:"trace",k:"Intent",v:"refund · request",s:"info",api:{m:"CLASSIFY",p:"intent=refund_request conf=0.94"}},
+        {t:"trace",k:"Charge found",v:"€89.00 · 14 May 2026",s:"info",api:{m:"GET",p:"/payments/charges?user=u_8842&window=90d"}},
+        {t:"trace",k:"28-day window",v:"charged 42 days ago",s:"fail",api:{m:"RULE",p:"charge_date + 28d >= today → false"}},
+        {t:"bot",text:"I can look into that with you. I can see a subscription charge of €89 on 14 May."},
+        {t:"bot",text:"Refund requests need to reach us within 28 days of the charge, and this one was 42 days ago — so I'm not able to put it forward. I'm sorry, I know that isn't what you were hoping to hear."},
+        {t:"trace",k:"Outcome",v:"DECLINE · outside 28-day window",s:"out-fail"},
+        {t:"trace",k:"Payment API",v:"not called",s:"info",api:{m:"—",p:"no write issued"}},
+        {t:"bot",text:"If something about that charge doesn't look right to you, I can pass you to someone who'll take a closer look."},
+        {t:"handoff",text:"Offered — the customer chooses"}
+      ]},
+      { id:"r2", chip:"How do refunds work?", hint:"Answered, no decision", outcome:"Answered, no decision", script:[
+        {t:"user",text:"how long does a refund actually take to come through?"},
+        {t:"trace",k:"Intent",v:"refund · question",s:"info",api:{m:"CLASSIFY",p:"intent=refund_question conf=0.91"}},
+        {t:"trace",k:"Decision needed",v:"none — informational",s:"info",api:{m:"GET",p:"/helpcenter/articles?topic=refund_timing"}},
+        {t:"bot",text:"Refund requests are reviewed within 30 calendar days."},
+        {t:"bot",text:"Once one is approved, the money goes back to the card or account you originally paid with — we're not able to send it anywhere else."},
+        {t:"trace",k:"Outcome",v:"ANSWERED",s:"out-pass"},
+        {t:"trace",k:"Account data",v:"not accessed",s:"info",api:{m:"—",p:"no account read required"}},
+        {t:"bot",text:"Anything else you'd like to know about how it works?"}
+      ]},
+      { id:"r3", chip:"Cancelled, no lessons used", hint:"Approved after identity check", outcome:"Approved after identity check", script:[
+        {t:"user",text:"I cancelled my subscription and haven't used any lessons this month. Can I get a refund?"},
+        {t:"trace",k:"Intent",v:"refund · request",s:"info",api:{m:"CLASSIFY",p:"intent=refund_request conf=0.96"}},
+        {t:"trace",k:"Subscription",v:"cancelled 2 Jul 2026",s:"pass",api:{m:"GET",p:"/subscriptions/s_2291 → status:cancelled"}},
+        {t:"trace",k:"Lessons used",v:"0 of 4 this cycle",s:"pass",api:{m:"GET",p:"/bookings/lessons?cycle=current → used:0 total:4"}},
+        {t:"trace",k:"28-day window",v:"charged 9 days ago",s:"pass",api:{m:"RULE",p:"charge_date + 28d >= today → true"}},
+        {t:"trace",k:"Prior refunds",v:"none on account",s:"pass",api:{m:"GET",p:"/refunds?user=u_8842&window=90d → []"}},
+        {t:"bot",text:"Good news — that one does look eligible. Your subscription was cancelled on 2 July and none of this cycle's four lessons have been used."},
+        {t:"trace",k:"Identity",v:"required before any write",s:"hold",api:{m:"GATE",p:"payment.write BLOCKED until identity.verified"}},
+        {t:"bot",text:"Before I can move any money I need to confirm it's you. It only takes a few seconds."},
+        {t:"gate",label:"Verify identity"},
+        {t:"trace",k:"Identity",v:"verified",s:"pass",api:{m:"POST",p:"/identity/verify → 200 {verified:true}",w:1}},
+        {t:"bot",text:"Thanks, that's confirmed."},
+        {t:"bot",text:"I've submitted a refund of €89 to the card ending 4417. You'll get an email confirmation, and the review completes within 30 days."},
+        {t:"trace",k:"Refund created",v:"€89.00 → original method",s:"info",api:{m:"POST",p:"/refunds {amount:8900, ccy:EUR, method:original} → 201",w:1}},
+        {t:"trace",k:"Outcome",v:"APPROVED · refund submitted",s:"out-pass"},
+        {t:"trace",k:"Human judgement",v:"none — all rules matched",s:"info",api:{m:"AUDIT",p:"decision_by=rules_engine v1.0",w:1}}
+      ]},
+      { id:"r4", chip:"Used some of my lessons", hint:"Handed to a person", outcome:"Handed to a person", script:[
+        {t:"user",text:"I want my money back, I've only done 2 of my 4 lessons this month"},
+        {t:"trace",k:"Intent",v:"refund · request",s:"info",api:{m:"CLASSIFY",p:"intent=refund_request conf=0.93"}},
+        {t:"trace",k:"28-day window",v:"charged 11 days ago",s:"pass",api:{m:"RULE",p:"charge_date + 28d >= today → true"}},
+        {t:"trace",k:"Lessons used",v:"2 of 4 this cycle",s:"fail",api:{m:"GET",p:"/bookings/lessons?cycle=current → used:2 total:4"}},
+        {t:"trace",k:"Matching rule",v:"none — partial use uncovered",s:"fail",api:{m:"RULE",p:"no branch matches partial_use → escalate"}},
+        {t:"bot",text:"I can see you've used 2 of your 4 lessons this cycle."},
+        {t:"bot",text:"That's not something I can decide on my own — partial refunds get looked at case by case."},
+        {t:"bot",text:"I'm passing you to the support team now, with your lesson history and this conversation attached, so you won't have to explain it again."},
+        {t:"trace",k:"Handoff",v:"queued with full context",s:"info",api:{m:"POST",p:"/conversations/assign {team:refunds, ctx:full} → 200",w:1}},
+        {t:"trace",k:"Outcome",v:"HANDOFF · no rule covers this",s:"out-hold"},
+        {t:"trace",k:"Payment API",v:"not called",s:"info",api:{m:"—",p:"no write issued"}},
+        {t:"handoff",text:"Transferred with full context"}
+      ]},
+      { id:"r5", chip:"I need another refund", hint:"Flagged, not resolved", outcome:"Flagged, not resolved", script:[
+        {t:"user",text:"I need a refund on my subscription again please"},
+        {t:"trace",k:"Intent",v:"refund · request",s:"info",api:{m:"CLASSIFY",p:"intent=refund_request conf=0.95"}},
+        {t:"trace",k:"Prior refunds",v:"3 in last 90 days",s:"flag",api:{m:"GET",p:"/refunds?user=u_5501&window=90d → 3 records"}},
+        {t:"trace",k:"Risk rule",v:"threshold exceeded — halt",s:"flag",api:{m:"RULE",p:"prior_refunds >= 2 → escalate BEFORE eligibility"}},
+        {t:"trace",k:"28-day window",v:"not evaluated",s:"hold",api:{m:"—",p:"skipped — risk rule fired first"}},
+        {t:"bot",text:"I can see the charge from three days ago, and no lessons used yet."},
+        {t:"bot",text:"Because there have been a few refunds on this account recently, this one needs a person to look at it rather than me."},
+        {t:"bot",text:"I'm passing you over now — they'll have everything in front of them."},
+        {t:"trace",k:"Handoff",v:"queued for review",s:"info",api:{m:"POST",p:"/conversations/assign {team:risk, flag:repeat} → 200",w:1}},
+        {t:"trace",k:"Outcome",v:"HANDOFF · repeat-request flag",s:"out-hold"},
+        {t:"note",text:"The risk check runs before eligibility. Even a perfectly eligible request stops here if the pattern looks unusual."},
+        {t:"handoff",text:"Transferred for review"}
+      ]}
+    ]
+  },
+  noshow: {
+    label: "Tutor didn't join",
+    ask: "Sorry to hear that. Which of these matches what happened?",
+    items: [
+      { id:"n1", chip:"It's happening right now", hint:"Guided — too early to report", outcome:"Guided — too early to report", script:[
+        {t:"user",text:"my tutor hasn't shown up for my lesson"},
+        {t:"trace",k:"Intent",v:"lesson · tutor absent",s:"info",api:{m:"CLASSIFY",p:"intent=tutor_no_show conf=0.92"}},
+        {t:"trace",k:"Lesson status",v:"in progress · started 8 min ago",s:"hold",api:{m:"GET",p:"/lessons/l_44190 → state:live start:18:00"}},
+        {t:"trace",k:"Report window",v:"not open until lesson ends",s:"hold",api:{m:"RULE",p:"now >= scheduled_end → false"}},
+        {t:"bot",text:"Sorry, that's a frustrating way to start. Your lesson with Marta began 8 minutes ago."},
+        {t:"bot",text:"Tutors are sometimes a few minutes late, so it's worth messaging them here and giving it 15–20 minutes from the start time. If they join and the lesson goes ahead, it won't count as an absence."},
+        {t:"bot",text:"If there's still nothing by then, come back to me and I'll take care of it."},
+        {t:"trace",k:"Outcome",v:"GUIDED · nothing to action yet",s:"out-pass"},
+        {t:"trace",k:"Balance API",v:"not called",s:"info",api:{m:"—",p:"no write issued"}}
+      ]},
+      { id:"n2", chip:"They never joined", hint:"Lesson returned", outcome:"Lesson returned to balance", script:[
+        {t:"user",text:"my tutor never joined, the lesson finished 20 minutes ago"},
+        {t:"trace",k:"Intent",v:"lesson · tutor absent",s:"info",api:{m:"CLASSIFY",p:"intent=tutor_no_show conf=0.97"}},
+        {t:"trace",k:"Lesson ended",v:"22 minutes ago",s:"pass",api:{m:"GET",p:"/lessons/l_77120 → ended:18:55 type:regular"}},
+        {t:"trace",k:"Auto-confirmation",v:"not yet confirmed",s:"pass",api:{m:"RULE",p:"confirmed_at is null → reportable"}},
+        {t:"trace",k:"Attendance record",v:"student joined · tutor absent",s:"pass",api:{m:"GET",p:"/lessons/l_77120/attendance → student:18:00:04 tutor:null"}},
+        {t:"bot",text:"I've checked the lesson record — you joined at 18:00 and your tutor didn't join at all."},
+        {t:"trace",k:"Balance credited",v:"+1 lesson",s:"info",api:{m:"POST",p:"/balances/credit {lessons:1, reason:tutor_absent} → 200",w:1}},
+        {t:"trace",k:"Tutor payout",v:"withheld",s:"info",api:{m:"POST",p:"/payouts/hold {lesson:l_77120} → 200",w:1}},
+        {t:"bot",text:"I've put the lesson back on your balance, so you haven't lost it, and your tutor isn't paid for it."},
+        {t:"trace",k:"Outcome",v:"RESOLVED · lesson returned",s:"out-pass"},
+        {t:"bot",text:"You've got 8 lessons available again. If this happens more than once with the same tutor, you can move your remaining lessons to someone else — I can show you how."}
+      ]},
+      { id:"n3", chip:"It was my trial lesson", hint:"Trial returned", outcome:"Trial returned to balance", script:[
+        {t:"user",text:"the tutor didn't turn up to my trial lesson"},
+        {t:"trace",k:"Intent",v:"lesson · tutor absent",s:"info",api:{m:"CLASSIFY",p:"intent=tutor_no_show conf=0.94"}},
+        {t:"trace",k:"Lesson type",v:"trial",s:"info",api:{m:"GET",p:"/lessons/l_31882 → type:trial"}},
+        {t:"trace",k:"Auto-confirmation",v:"not yet confirmed",s:"pass",api:{m:"RULE",p:"confirmed_at is null → reportable"}},
+        {t:"trace",k:"Attendance record",v:"student joined · tutor absent",s:"pass",api:{m:"GET",p:"/lessons/l_31882/attendance → tutor:null"}},
+        {t:"bot",text:"Checked — you were there and the tutor wasn't."},
+        {t:"trace",k:"Trial restored",v:"+1 trial credit",s:"info",api:{m:"POST",p:"/balances/credit {trial:1, reason:tutor_absent} → 200",w:1}},
+        {t:"bot",text:"Your trial is back on your balance. You can use it with the same tutor if you'd like to give them another go, or with anyone else."},
+        {t:"trace",k:"Outcome",v:"RESOLVED · trial returned",s:"out-pass"},
+        {t:"bot",text:"Want me to show you a few tutors with similar availability?"}
+      ]},
+      { id:"n4", chip:"It happened last week", hint:"Handed to a person", outcome:"Handed to a person", script:[
+        {t:"user",text:"my tutor missed a lesson last Tuesday and I never reported it"},
+        {t:"trace",k:"Intent",v:"lesson · tutor absent",s:"info",api:{m:"CLASSIFY",p:"intent=tutor_no_show conf=0.90"}},
+        {t:"trace",k:"Lesson ended",v:"5 days ago",s:"info",api:{m:"GET",p:"/lessons/l_69034 → ended:2026-07-28"}},
+        {t:"trace",k:"Auto-confirmation",v:"confirmed after 72 hours",s:"fail",api:{m:"RULE",p:"confirmed_at not null → window closed"}},
+        {t:"trace",k:"Balance write",v:"blocked",s:"fail",api:{m:"GATE",p:"balance.write BLOCKED — lesson already settled"}},
+        {t:"bot",text:"I've found Tuesday's lesson. It was confirmed automatically after 72 hours, which is what happens when nothing's reported."},
+        {t:"bot",text:"That means I can't return it from here — but it can still be reviewed by a person."},
+        {t:"bot",text:"I'm passing this over with the lesson details attached."},
+        {t:"trace",k:"Handoff",v:"queued with lesson record",s:"info",api:{m:"POST",p:"/conversations/assign {team:lessons, ctx:full} → 200",w:1}},
+        {t:"trace",k:"Outcome",v:"HANDOFF · outside automated window",s:"out-hold"},
+        {t:"handoff",text:"Transferred with lesson record"}
+      ]},
+      { id:"n5", chip:"The lesson didn't really happen", hint:"Handed to a person", outcome:"Handed to a person", script:[
+        {t:"user",text:"I want my lesson back, the tutor wasn't there"},
+        {t:"trace",k:"Intent",v:"lesson · tutor absent",s:"info",api:{m:"CLASSIFY",p:"intent=tutor_no_show conf=0.89"}},
+        {t:"trace",k:"Attendance record",v:"both joined · 46 min connected",s:"fail",api:{m:"GET",p:"/lessons/l_50277/attendance → student:15:00 tutor:15:02 dur:46m"}},
+        {t:"trace",k:"Rule check",v:"record contradicts report",s:"fail",api:{m:"RULE",p:"tutor_joined = true → auto-credit denied"}},
+        {t:"bot",text:"I've looked at yesterday's 15:00 lesson, and the record shows both you and your tutor connected, for around 46 minutes."},
+        {t:"bot",text:"Because of that I can't return the lesson automatically."},
+        {t:"bot",text:"If the lesson didn't really go ahead — the connection dropped, or something else happened — a person can review it properly. Shall I pass you over?"},
+        {t:"trace",k:"Outcome",v:"HANDOFF offered · record conflicts",s:"out-hold"},
+        {t:"trace",k:"Balance API",v:"not called",s:"info",api:{m:"—",p:"no write issued"}},
+        {t:"note",text:"The bot states what the record shows and stops. It never argues with the customer about what happened."}
+      ]}
+    ]
+  }
+};
+
+const STATUS = {
+  pass:{c:"var(--pass)",l:"pass"}, fail:{c:"var(--fail)",l:"fail"},
+  flag:{c:"var(--flag)",l:"flag"}, hold:{c:"var(--hold)",l:"hold"},
+  info:{c:"var(--console-line)",l:""},
+  "out-pass":{c:"var(--pass)",bg:"rgba(18,165,148,.14)"},
+  "out-fail":{c:"var(--fail)",bg:"rgba(240,82,106,.14)"},
+  "out-hold":{c:"var(--flag)",bg:"rgba(232,163,61,.14)"}
+};
+
+const log=document.getElementById("log"), tlog=document.getElementById("tlog"),
+      gatewrap=document.getElementById("gatewrap"), statusEl=document.getElementById("status"),
+      tcount=document.getElementById("tcount");
+let timer=null, typingEl=null, checks=0;
+
+const el=(t,c,txt)=>{const e=document.createElement(t); if(c)e.className=c;
+  if(txt!==undefined)e.textContent=txt; return e;};
+const scrollBoth=()=>{log.scrollTop=log.scrollHeight; tlog.scrollTop=tlog.scrollHeight;};
+
+function clearTyping(){ if(typingEl){typingEl.remove(); typingEl=null;} }
+function showTyping(){
+  clearTyping();
+  const r=el("div","row"); r.dataset.who="bot";
+  const t=el("div","typing"); t.innerHTML="<i></i><i></i><i></i>";
+  r.appendChild(t); log.appendChild(r); typingEl=r; scrollBoth();
+}
+
+function addBubble(who,text){
+  const r=el("div","row"); r.dataset.who=who;
+  const b=el("div","b",text); b.dataset.who=who;
+  r.appendChild(b); log.appendChild(r); scrollBoth();
+}
+
+function addTrace(step){
+  checks++;
+  tcount.textContent=checks+" checks";
+  const st=STATUS[step.s]||STATUS.info;
+  const wrap=el("div","t");
+  if(step.s.indexOf("out-")===0){
+    const o=el("div","out"); o.style.background=st.bg; o.style.color=st.c;
+    o.appendChild(el("div","outk",step.k));
+    o.appendChild(el("div","outv",step.v));
+    wrap.appendChild(o);
+  }else{
+    const h=el("div","thead");
+    const d=el("span","dot"); d.style.background=st.c; h.appendChild(d);
+    h.appendChild(el("span","tk",step.k));
+    h.appendChild(el("span","tv",step.v));
+    if(st.l){ const tg=el("span","tag",st.l);
+      tg.style.background=st.c; tg.style.color=(step.s==="flag")?"#3B2A00":"#fff";
+      h.appendChild(tg); }
+    wrap.appendChild(h);
+    if(step.api){
+      const a=el("div","api"+(step.api.w?" write":""));
+      a.innerHTML='<span class="verb">'+step.api.m+'</span> '+step.api.p;
+      wrap.appendChild(a);
+    }
+  }
+  tlog.appendChild(wrap); scrollBoth();
+}
+
+function optionBlock(options, onPick){
+  const box=el("div","opts");
+  options.forEach(o=>{
+    const b=el("button","opt",o.chip);
+    b.onclick=()=>{ box.remove(); onPick(o); };
+    box.appendChild(b);
+  });
+  log.appendChild(box); scrollBoth();
+}
+
+function reset(){
+  clearTimeout(timer); clearTyping();
+  log.innerHTML=""; tlog.innerHTML='<div class="idle">awaiting request…</div>';
+  gatewrap.innerHTML=""; checks=0; tcount.textContent="idle";
+  statusEl.textContent="Choose what you need help with";
+  addBubble("bot","Hi — I can help with a few things right away. What's this about?");
+  mainMenu();
+}
+
+function mainMenu(){
+  optionBlock([
+    {chip:DATA.refund.label, key:"refund"},
+    {chip:DATA.noshow.label, key:"noshow"},
+    {chip:"Something else", key:"other"}
+  ], o=> o.key==="other" ? somethingElse() : pickIntent(o.key));
+}
+
+function somethingElse(){
+  addBubble("user","Something else");
+  statusEl.textContent="Choose what you need help with";
+  showTyping();
+  setTimeout(()=>{
+    clearTyping();
+    addBubble("bot","I would love to show more, but this is a demo for the panel and Telmo didn't have enough tokens for more options :)");
+    setTimeout(()=>{
+      addBubble("bot","Let's try one of these instead.");
+      setTimeout(mainMenu,350);
+    },900);
+  },1150);
+}
+
+function pickIntent(key){
+  const group=DATA[key];
+  addBubble("user",group.label);
+  statusEl.textContent="Pick a situation";
+  setTimeout(()=>{
+    addBubble("bot",group.ask);
+    setTimeout(()=>optionBlock(group.items,sc=>runScenario(sc)),350);
+  },550);
+}
+
+function runScenario(sc){
+  tlog.innerHTML=""; checks=0;
+  statusEl.textContent="Running…";
+  play(sc,0);
+}
+
+function play(sc,i){
+  const script=sc.script;
+  if(i>=script.length){
+    clearTyping();
+    statusEl.textContent=sc.outcome;
+    setTimeout(()=>{
+      addBubble("bot","Anything else I can help with?");
+      setTimeout(()=>optionBlock([
+        {chip:"Refund request",key:"refund"},
+        {chip:"Tutor didn't join",key:"noshow"},
+        {chip:"Something else",key:"other"}
+      ],o=>{ tlog.innerHTML='<div class="idle">awaiting request…</div>';
+             checks=0; tcount.textContent="idle";
+             o.key==="other" ? somethingElse() : pickIntent(o.key); }),350);
+    },600);
+    return;
+  }
+  const step=script[i];
+
+  if(step.t==="gate"){
+    clearTyping();
+    gatewrap.innerHTML="";
+    const w=el("div","gatewrap");
+    w.appendChild(el("div","gatelabel","Required before any payment"));
+    const btn=el("button","gate",step.label);
+    btn.onclick=()=>{ gatewrap.innerHTML=""; play(sc,i+1); };
+    w.appendChild(btn); gatewrap.appendChild(w);
+    statusEl.textContent="Waiting on identity check";
+    return;
+  }
+
+  if(step.t==="trace"){ addTrace(step); timer=setTimeout(()=>play(sc,i+1),320); return; }
+
+  if(step.t==="user"){ clearTyping(); addBubble("user",step.text);
+    timer=setTimeout(()=>play(sc,i+1),520); return; }
+
+  if(step.t==="bot"){
+    showTyping();
+    timer=setTimeout(()=>{ clearTyping(); addBubble("bot",step.text);
+      play(sc,i+1); }, 1150);
+    return;
+  }
+
+  if(step.t==="handoff"){ clearTyping();
+    const s=el("div","sys","↗ "+step.text); log.appendChild(s); scrollBoth();
+    timer=setTimeout(()=>play(sc,i+1),400); return; }
+
+  if(step.t==="note"){ clearTyping();
+    const n=el("div","note",step.text); log.appendChild(n); scrollBoth();
+    timer=setTimeout(()=>play(sc,i+1),400); return; }
+
+  play(sc,i+1);
+}
+
+document.getElementById("restart").onclick=reset;
+reset();
+</script>
+</body>
+</html>
